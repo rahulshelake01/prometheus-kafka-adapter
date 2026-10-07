@@ -55,7 +55,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K6_SMOKE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${K6_SMOKE_DIR}/../.." && pwd)"
 HELM_DIR="${REPO_ROOT}/helm/prometheus-kafka-adapter"
-SMOKE_TESTS_DIR="${K6_SMOKE_DIR}/k6"
+SMOKE_TESTS_DIR="${K6_SMOKE_DIR}"
 
 # ─── Parse arguments ────────────────────────────────────────────────────────
 usage() {
@@ -377,21 +377,17 @@ deploy_configmaps() {
 
   # ── Scripts ConfigMap ──
   local FROM_FILE_ARGS=(
-    "--from-file=config.js=${SMOKE_TESTS_DIR}/modular-config.js"
-    "--from-file=auth.js=${SMOKE_TESTS_DIR}/modular-auth.js"
-    "--from-file=validators.js=${SMOKE_TESTS_DIR}/modular-http-client.js"
-    "--from-file=utils.js=${SMOKE_TESTS_DIR}/modular-scenario-runner.js"
-    "--from-file=resourceHelpers.js=${SMOKE_TESTS_DIR}/modular-resource-tracker.js"
+    "--from-file=main.js=${SMOKE_TESTS_DIR}/main.js"
+    "--from-file=config.js=${SMOKE_TESTS_DIR}/config/config.js"
+    "--from-file=auth.js=${SMOKE_TESTS_DIR}/helpers/auth.js"
+    "--from-file=validators.js=${SMOKE_TESTS_DIR}/helpers/validators.js"
+    "--from-file=utils.js=${SMOKE_TESTS_DIR}/helpers/utils.js"
+    "--from-file=resourceHelpers.js=${SMOKE_TESTS_DIR}/helpers/resourceHelpers.js"
   )
 
-  # Add main.js if it exists
-  if [[ -f "${SMOKE_TESTS_DIR}/smoke-tests-modular.js" ]]; then
-    FROM_FILE_ARGS+=("--from-file=main.js=${SMOKE_TESTS_DIR}/smoke-tests-modular.js")
-  fi
-
-  # Add smoke-test-config.json if it exists
-  if [[ -f "${SMOKE_TESTS_DIR}/smoke-test-config.json" ]]; then
-    FROM_FILE_ARGS+=("--from-file=smoke-test-plan.json=${SMOKE_TESTS_DIR}/smoke-test-config.json")
+  # Add smoke-test-plan.json if it exists
+  if [[ -f "${SMOKE_TESTS_DIR}/smoke-test-plan.json" ]]; then
+    FROM_FILE_ARGS+=("--from-file=smoke-test-plan.json=${SMOKE_TESTS_DIR}/smoke-test-plan.json")
   fi
 
   # Add test files if they exist
@@ -463,6 +459,24 @@ deploy_job_template() {
                   name: ${SECRET_NAME}
                   key: basic-auth-password"
   fi
+
+  # Flat ConfigMap keys are mounted into the nested paths main.js imports from
+  local HELPER_MOUNTS="" TEST_MOUNTS="" F
+  for F in auth validators utils resourceHelpers; do
+    HELPER_MOUNTS+="            - name: k6-scripts
+              mountPath: /scripts/helpers/${F}.js
+              subPath: ${F}.js
+              readOnly: true
+"
+  done
+  for F in "${SMOKE_TESTS_DIR}"/tests/*.test.js; do
+    F="$(basename "$F")"
+    TEST_MOUNTS+="            - name: k6-scripts
+              mountPath: /scripts/tests/${F}
+              subPath: ${F}
+              readOnly: true
+"
+  done
 
   local JOB_YAML
   JOB_YAML=$(cat <<JOBEOF
@@ -540,9 +554,14 @@ spec:
               memory: "512Mi"
           volumeMounts:
             - name: k6-scripts
-              mountPath: /scripts
+              mountPath: /scripts/main.js
+              subPath: main.js
               readOnly: true
-      volumes:
+            - name: k6-scripts
+              mountPath: /scripts/config/config.js
+              subPath: config.js
+              readOnly: true
+${HELPER_MOUNTS}${TEST_MOUNTS}      volumes:
         - name: k6-scripts
           configMap:
             name: ${SCRIPTS_CM}

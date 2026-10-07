@@ -24,7 +24,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "| **Service** | **Cluster** | **Version** | **Scenarios** | **Threshold** |\n|:--|:--|:--|:--|:--|\n| `prometheus-kafka-adapter` | `us-dev-5` | `$version` | 9 (SMOKE-001 \u2192 SMOKE-NEG-007) | \u2265 80% = PASS |",
+        "content": "| **Service** | **Cluster** | **Version** | **Scenarios** | **Threshold** |\n|:--|:--|:--|:--|:--|\n| `prometheus-kafka-adapter` | `__CLUSTER__` | `$version` | 9 (SMOKE-001 \u2192 SMOKE-NEG-007) | \u2265 80% = PASS |",
         "mode": "markdown"
       },
       "pluginVersion": "10.4.19",
